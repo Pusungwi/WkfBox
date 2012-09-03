@@ -1,0 +1,20 @@
+{% extends 'layout.html' %}
+{% block content %}
+<form method="POST" enctype="multipart/form-data">
+  <div>
+    <label for="image">Image:</label>
+    <input type="file" id="image" name="image" required>
+  </div>
+  <div>
+    <label for="category">Category:</label>
+    <input type="text" id="category" name="category">
+  </div>
+  <div>
+    <label for="episode">Episode:</label>
+    <input type="number" id="episode" name="episode">
+  </div>
+  <div>
+    <input type="submit">
+  </div>
+</form>
+{% endblock %}

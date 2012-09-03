@@ -1,0 +1,16 @@
+{% extends 'layout.html' %}
+{% block content %}
+<form method="POST">
+  <div>
+    <label for="name">Name:</label>
+    <input type="text" id="name" name="name" required>
+  </div>
+  <div>
+    <label for="slug">Slug:</label>
+    <input type="text" id="slug" name="slug">
+  </div>
+  <div>
+    <input type="submit">
+  </div>
+</form>
+{% endblock %}

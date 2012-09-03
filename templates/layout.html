@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WkfBox</title>
+</head>
+<body>
+<header>
+  <a href="{{ url_for('list') }}">All</a>
+  <a href="{{ url_for('random') }}">Random</a>
+  <a href="{{ url_for('add_category') }}">Add Category</a>
+  <a href="{{ url_for('upload') }}">Upload</a>
+</header>
+{% block content %}{% endblock %}</body>
+</html>

@@ -1,0 +1,21 @@
+{% extends 'layout.html' %}
+{% block content %}
+{% if category_name %}
+<h1>{{ category_name }}{% if episode %} - {{ episode }}화{% endif %}</h1>
+{% endif %}
+<ul>
+{% for picture in pictures %}
+  <li><a href="{{ url_for('show', id=picture.id) }}"><img src="{{ url_for('show', id=picture.id, thumb='') }}"></a></li>
+{% else %}
+  <li>No Wkfs</li>
+{% endfor %}
+</ul>
+<div>
+{% if page < total_page %}
+<a href="?page={{ page + 1 }}">&laquo; Older</a>
+{% endif %}
+{% if page > 1 %}
+<a href="?page={{ page - 1 }}">Newer &raquo;</a>
+{% endif %}
+</div>
+{% endblock %}
