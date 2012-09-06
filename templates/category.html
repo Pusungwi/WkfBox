@@ -3,11 +3,11 @@
 <form method="POST">
   <div>
     <label for="name">Name:</label>
-    <input type="text" id="name" name="name" required>
+    <input type="text" id="name" name="name"{% if category %} value="{{ category.name }}"{% endif %} required>
   </div>
   <div>
     <label for="slug">Slug:</label>
-    <input type="text" id="slug" name="slug">
+    <input type="text" id="slug" name="slug"{% if category %} value="{{ category.slug }}"{% endif %}>
   </div>
   <div>
     <input type="submit">

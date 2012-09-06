@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# This program is free software. It comes without any warranty, to
+# the extent permitted by applicable law. You can redistribute it
+# and/or modify it under the terms of the Do What The Fuck You Want
+# To Public License, Version 2, as published by Sam Hocevar. See
+# http://sam.zoy.org/wtfpl/COPYING for more details.
 
 # Imports
 import math
@@ -32,6 +39,18 @@ def slugify(text, delim=u'-'):
   for word in _punct_re.split(text.lower()):
       result.extend(unidecode(word).split())
   return unicode(delim.join(result))
+
+def rebuild_thumbnail():
+  pictures = Picture.query.all()
+  for picture in pictures:
+    try:
+      os.unlink(os.path.join(config.UPLOAD_DIRECTORY, picture.thumbnail))
+    except OSError:
+      pass
+    with open(os.path.join(config.UPLOAD_DIRECTORY, picture.filename)) as fp:
+      image = Image.open(fp)
+      image.thumbnail(config.THUMBNAIL_SIZE, Image.ANTIALIAS)
+      image.save(os.path.join(config.UPLOAD_DIRECTORY, picture.thumbnail))
 
 # Database
 engine = create_engine(config.DB_CONNECTION_STRING, echo=config.DEBUG)
@@ -111,7 +130,7 @@ def upload():
     if not fileext in app.config['ALLOWED_EXTS']:
       abort(400)
     filename = str(uuid.uuid4())
-    thumbnail = filename + '.thumb' + fileext
+    thumbnail = filename + '.thumb.jpg'
 
     # Find category
     category = None
@@ -155,7 +174,29 @@ def add_category():
     db_session.commit()
 
     return redirect('/' + category.slug)
-  return render_template('add_category.html')
+  return render_template('category.html')
+
+@app.route('/<category_slug>/:edit', methods=['GET', 'POST'])
+def edit_category(category_slug):
+  if request.method == 'POST':
+    try:
+      category = Category.query.filter_by(slug=category_slug).one()
+    except NoResultFound:
+      abort(404)
+
+    category.name = request.form['name'] or abort(400)
+    category.slug = request.form['slug'] or slugify(category.name)
+
+    db_session.commit()
+
+    return redirect(url_for('list', category_slug=category.slug))
+
+  try:
+    category = Category.query.filter_by(slug=category_slug).one()
+  except NoResultFound:
+    abort(404)
+
+  return render_template('category.html', category=category)
 
 @app.route('/:r')
 def random():
@@ -187,20 +228,19 @@ def delete(id):
 @app.route('/<category_slug>', defaults={'episode': None})
 @app.route('/<category_slug>/:<int:episode>')
 def list(category_slug=None, episode=None):
-  page = request.args.get('page',  1, int) - 1
-  range_start = page * app.config['PER_PAGE']
-  range_end = (page + 1) * app.config['PER_PAGE']
-  category_name = None
+  page = request.args.get('page',  1, int)
+  range_start = (page - 1) * app.config['PER_PAGE']
+  range_end = page * app.config['PER_PAGE']
+  category = None
 
-  if category_slug is None:
-    pictures = Picture.query
-  else:
+  pictures = Picture.query
+  if category_slug is not None:
     try:
       category = Category.query.filter_by(slug=category_slug).one()
     except NoResultFound:
       abort(404)
     category_name = category.name
-    pictures = Picture.query.filter_by(category_id=category.id)
+    pictures = pictures.filter_by(category_id=category.id)
     if episode is not None:
       pictures = pictures.filter_by(episode=episode)
 
@@ -209,10 +249,9 @@ def list(category_slug=None, episode=None):
   if range_start > count:
     abort(404)
 
-  return render_template('list.html', pictures=pictures.order_by(desc(Picture.id))[range_start:range_end]
-                                    , category_name=category_name
-                                    , episode=episode
-                                    , page=page + 1, total_page=total_page)
+  pictures = pictures.order_by(desc(Picture.id))[range_start:range_end]
+  return render_template('list.html', pictures=pictures, category=category
+                                    , episode=episode, page=page, total_page=total_page)
 
 if __name__ == '__main__':
   app.run()

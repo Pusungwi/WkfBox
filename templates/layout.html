@@ -1,14 +1,83 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>WkfBox</title>
+<title>WkfBox</title>
+<style>
+body {
+  max-width: 835px;
+  margin: 10px auto;
+  padding: 0;
+  border: 1px solid #ddd;
+}
+a {
+  color: #accb53;
+  text-decoration: none;
+}
+a:hover {
+  border-bottom: 1px solid #ccc;
+}
+
+nav ul {
+  list-style: none;
+}
+nav ul li {
+  display: inline-block;
+  padding-right: 10px;
+}
+
+header {
+  padding: 0 10px;
+  border-bottom: 1px solid #ddd;
+}
+header h1 {
+  margin-left: 35px;
+}
+
+footer {
+  padding: 0 35px;
+}
+
+.picture-list {
+  list-style-type: none;
+}
+.picture-list li {
+  display: inline-block;
+  margin: 0 5px 5px 0;
+  padding: 0;
+}
+.picture-list li a {
+  display: block;
+  line-height: 0;
+  border: 2px solid #ddd;
+  padding: 0;
+  margin: 0;
+}
+.picture-list li a:hover {
+  border: 2px solid #accb53;
+}
+
+.pager {
+  padding: 0 35px;
+}
+.pager a:first-child {
+  padding-right: 15px;
+}
+</style>
 </head>
 <body>
 <header>
-  <a href="{{ url_for('list') }}">All</a>
-  <a href="{{ url_for('random') }}">Random</a>
-  <a href="{{ url_for('add_category') }}">Add Category</a>
-  <a href="{{ url_for('upload') }}">Upload</a>
+  <h1>WkfBox</h1>
+  <nav>
+    <ul>
+      <li><a href="{{ url_for('list') }}">All</a></li>
+      <li><a href="{{ url_for('random') }}">Random</a></li>
+      <li><a href="{{ url_for('add_category') }}">Add Category</a></li>
+      <li><a href="{{ url_for('upload') }}">Upload</a></li>
+    </ul>
+  </nav>
 </header>
-{% block content %}{% endblock %}</body>
+{% block content %}{% endblock %}
+<footer>
+  <p style="text-align: right; font-size: 0.75em; color: #666;">All right reserved for their respective owners.</p>
+</footer></body>
 </html>
