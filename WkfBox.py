@@ -8,6 +8,7 @@
 # http://sam.zoy.org/wtfpl/COPYING for more details.
 
 # Imports
+import sys
 import math
 import os
 import re
@@ -39,6 +40,9 @@ def slugify(text, delim=u'-'):
   for word in _punct_re.split(text.lower()):
       result.extend(unidecode(word).split())
   return unicode(delim.join(result))
+
+def make_thumbnail(image):
+  pass
 
 def rebuild_thumbnail():
   pictures = Picture.query.all()
@@ -239,7 +243,6 @@ def list(category_slug=None, episode=None):
       category = Category.query.filter_by(slug=category_slug).one()
     except NoResultFound:
       abort(404)
-    category_name = category.name
     pictures = pictures.filter_by(category_id=category.id)
     if episode is not None:
       pictures = pictures.filter_by(episode=episode)
@@ -254,4 +257,4 @@ def list(category_slug=None, episode=None):
                                     , episode=episode, page=page, total_page=total_page)
 
 if __name__ == '__main__':
-  app.run()
+  app.run(sys.argv[1] if len(sys.argv) > 1 else '127.0.0.1')
