@@ -1,4 +1,7 @@
 Flask
 SQLAlchemy
+WTForms
+Flask-SQLAlchemy
+Flask-WTF
 unidecode
 PIL

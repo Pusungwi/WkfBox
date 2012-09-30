@@ -15,21 +15,29 @@ import re
 import uuid
 
 from flask import Flask, abort, redirect, request, send_file, render_template, url_for
+from flask.ext.sqlalchemy import SQLAlchemy
+from flask.ext.wtf import Form, StringField, FileField, DataRequired, Optional, Regexp, NumberRange, FileRequired
+from flask.ext.wtf.html5 import IntegerField
 
 from werkzeug.utils import secure_filename
 
-from sqlalchemy import create_engine, Table, Column, Integer, String, ForeignKey
-from sqlalchemy.orm import scoped_session, sessionmaker, relationship
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.sql.expression import desc, func
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.associationproxy import association_proxy
+
+from wtforms.ext.sqlalchemy.fields import QuerySelectField
+from wtforms.ext.sqlalchemy.validators import Unique
 
 from unidecode import unidecode
 
 from PIL import Image
 
 import config
+
+# Application Initialization
+app = Flask(__name__)
+app.config.from_object(config)
+db = SQLAlchemy(app)
 
 # Helpers
 _punct_re = re.compile(r'[\t !"#$%&\'()*\-/<=>?@\[\\\]^_`{|},.]+')
@@ -40,9 +48,6 @@ def slugify(text, delim=u'-'):
   for word in _punct_re.split(text.lower()):
       result.extend(unidecode(word).split())
   return unicode(delim.join(result))
-
-def make_thumbnail(image):
-  pass
 
 def rebuild_thumbnail():
   pictures = Picture.query.all()
@@ -56,50 +61,47 @@ def rebuild_thumbnail():
       image.thumbnail(config.THUMBNAIL_SIZE, Image.ANTIALIAS)
       image.save(os.path.join(config.UPLOAD_DIRECTORY, picture.thumbnail))
 
-# Database
-engine = create_engine(config.DB_CONNECTION_STRING, echo=config.DEBUG)
-db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
-Base = declarative_base()
-Base.query = db_session.query_property()
-
 def init_db():
-  Base.metadata.drop_all(bind=engine)
-  Base.metadata.create_all(bind=engine)
+  db.drop_all()
+  db.create_all()
 
 # Models
-class Category(Base):
+class Category(db.Model):
   __tablename__ = 'categories'
   
-  id = Column(Integer, primary_key=True)
-  slug = Column(String, nullable=False, unique=True)
-  name = Column(String, nullable=False)
-  pictures = relationship('Picture', backref='category')
+  id = db.Column(db.Integer, primary_key=True)
+  slug = db.Column(db.String, nullable=False, unique=True)
+  name = db.Column(db.String, nullable=False)
+  pictures = db.relationship('Picture', backref='category')
   
   def __init__(self, name, slug=None):
     self.name = name
     self.slug = slug or slugify(self.name)
 
-class Keyword(Base):
+  def __str__(self):
+    return self.name
+
+class Keyword(db.Model):
   __tablename__ = 'keywords'
   
-  id = Column(Integer, primary_key=True)
-  slug = Column(String, nullable=False, unique=True)
-  name = Column(String, nullable=False)
-  
+  id = db.Column(db.Integer, primary_key=True)
+  slug = db.Column(db.String, nullable=False, unique=True)
+  name = db.Column(db.String, nullable=False)
+
   def __init__(self, name):
     self.name = name
     self.slug = slugify(self.name)
 
-class Picture(Base):
+class Picture(db.Model):
   __tablename__ = 'pictures'
   
-  id = Column(Integer, primary_key=True)
-  category_id = Column(Integer, ForeignKey(Category.id))
-  filename = Column(String, nullable=False)
-  original_filename = Column(String)
-  thumbnail = Column(String, nullable=False)
-  episode = Column(Integer)
-  kw = relationship('Keyword', secondary=lambda: association_table, backref='pictures')
+  id = db.Column(db.Integer, primary_key=True)
+  category_id = db.Column(db.Integer, db.ForeignKey(Category.id))
+  filename = db.Column(db.String, nullable=False)
+  original_filename = db.Column(db.String)
+  thumbnail = db.Column(db.String, nullable=False)
+  episode = db.Column(db.Integer)
+  kw = db.relationship('Keyword', secondary=lambda: association_table, backref='pictures')
   
   keywords = association_proxy('kw', 'name')
 
@@ -108,17 +110,39 @@ class Picture(Base):
     self.thumbnail = thumbnail
     self.original_filename = original_filename
 
-association_table = Table('pictures_keywords', Base.metadata,
-  Column('picture_id', Integer, ForeignKey(Picture.id)),
-  Column('keyword_id', Integer, ForeignKey(Keyword.id))
+association_table = db.Table('pictures_keywords', db.metadata,
+  db.Column('picture_id', db.Integer, db.ForeignKey(Picture.id)),
+  db.Column('keyword_id', db.Integer, db.ForeignKey(Keyword.id))
 )
 
-app = Flask(__name__)
-app.config.from_object(config)
+# Forms
+class SlugField(StringField):
+  def __init__(self, source, **kwargs):
+    self.source = source
+    super(SlugField, self).__init__(**kwargs)
 
-@app.teardown_request
-def shutdown_session(exception=None):
-  db_session.remove()
+  def pre_validate(self, form):
+    if not self.data:
+      self.data = slugify(form[self.source].data)
+
+
+class CategoryForm(Form):
+  name = StringField(u'Name', validators=[DataRequired()])
+  slug = SlugField('name', label=u'Slug', validators=[
+    Regexp('^[0-9a-z\-]+$', message=u'Only lowercase alphabets, numbers, and hyphen are allowed.'),
+    Unique(lambda: db.session, Category, Category.slug)
+  ])
+
+class UploadForm(Form):
+  picture = FileField(u'Image', validators=[FileRequired()])
+  category = QuerySelectField(query_factory=lambda: Category.query.order_by(Category.name),
+                              allow_blank=True)
+  episode = IntegerField(u'Episode', validators=[Optional(strip_whitespace=False), NumberRange(1)])
+
+# Views
+@app.errorhandler(404)
+def error_404(e):
+  return render_template('404.html'), 404
 
 @app.route('/favicon.ico')
 def favicon():
@@ -126,28 +150,16 @@ def favicon():
 
 @app.route('/new/picture', methods=['GET', 'POST'])
 def upload():
-  if request.method == 'POST' and 'image' in request.files:
+  form = UploadForm()
+  if form.validate_on_submit():
     # Necessary variables
-    uploaded_image = request.files['image']
+    uploaded_image = form.picture.data
     original_filename = secure_filename(uploaded_image.filename)
     fileext = os.path.splitext(original_filename)[1]
     if not fileext in app.config['ALLOWED_EXTS']:
       abort(400)
     filename = str(uuid.uuid4())
     thumbnail = filename + '.thumb.jpg'
-
-    # Find category
-    category = None
-    if request.form['category']:
-      try:
-        category = Category.query.filter_by(name=request.form['category']).one()
-      except MultipleResultsFound:
-        abort(400)
-      except NoResultFound:
-        try:
-          category = Category.query.filter_by(slug=request.form['category']).one()
-        except NoResultFound:
-          abort(400)
 
     # Save thumbnail
     image = Image.open(uploaded_image.stream)
@@ -161,46 +173,47 @@ def upload():
 
     # Save to database
     picture = Picture(filename + fileext, thumbnail, original_filename)
-    picture.category_id = category.id if category else None
-    picture.episode = request.form.get('episode', None, int)
-    db_session.add(picture)
-    db_session.commit()
+    picture.category = form.category.data
+    picture.episode = form.episode.data or None
+    db.session.add(picture)
+    db.session.commit()
 
     return redirect('/')
 
-  return render_template('upload.html')
+  return render_template('upload.html', form=form)
 
 @app.route('/new/category', methods=['GET', 'POST'])
 def add_category():
-  if request.method == 'POST':
+  form = CategoryForm()
+  if form.validate_on_submit():
     category = Category(request.form['name'], request.form['slug'] or None)
-    db_session.add(category)
-    db_session.commit()
+    db.session.add(category)
+    db.session.commit()
 
-    return redirect('/' + category.slug)
-  return render_template('category.html')
+    return redirect(url_for('list', category_slug=category.slug))
+  return render_template('category.html', form=form)
 
 @app.route('/<category_slug>/:edit', methods=['GET', 'POST'])
 def edit_category(category_slug):
-  if request.method == 'POST':
-    try:
-      category = Category.query.filter_by(slug=category_slug).one()
-    except NoResultFound:
-      abort(404)
-
-    category.name = request.form['name'] or abort(400)
-    category.slug = request.form['slug'] or slugify(category.name)
-
-    db_session.commit()
-
-    return redirect(url_for('list', category_slug=category.slug))
-
   try:
     category = Category.query.filter_by(slug=category_slug).one()
   except NoResultFound:
     abort(404)
 
-  return render_template('category.html', category=category)
+  form = CategoryForm(obj=category)
+  if form.validate_on_submit():
+    try:
+      category = Category.query.filter_by(slug=category_slug).one()
+    except NoResultFound:
+      abort(404)
+
+    category.name = form.name.data
+    category.slug = form.slug.data or slugify(category.name)
+
+    db.session.commit()
+
+    return redirect(url_for('list', category_slug=category.slug))
+  return render_template('category.html', form=form)
 
 @app.route('/:r')
 def random():
@@ -217,14 +230,18 @@ def show(id):
              else picture.filename
   return send_file(os.path.join(app.config['UPLOAD_DIRECTORY'], filename))
 
+@app.route('/:<int:id>/edit')
+def edit(id):
+  pass
+
 @app.route('/:<int:id>/delete')
 def delete(id):
   try:
     picture = Picture.query.filter_by(id=id).one()
   except NoResultFound:
     abort(404)
-  db_session.delete(picture)
-  db_session.commit()
+  db.session.delete(picture)
+  db.session.commit()
 
   return redirect('/')
 
@@ -232,19 +249,19 @@ def delete(id):
 @app.route('/<category_slug>', defaults={'episode': None})
 @app.route('/<category_slug>/:<int:episode>')
 def list(category_slug=None, episode=None):
-  page = request.args.get('page',  1, int)
+  page = request.args.get('page', 1, int)
   range_start = (page - 1) * app.config['PER_PAGE']
   range_end = page * app.config['PER_PAGE']
   category = None
 
   pictures = Picture.query
-  if category_slug is not None:
+  if category_slug:
     try:
       category = Category.query.filter_by(slug=category_slug).one()
     except NoResultFound:
       abort(404)
     pictures = pictures.filter_by(category_id=category.id)
-    if episode is not None:
+    if episode:
       pictures = pictures.filter_by(episode=episode)
 
   count = pictures.count()

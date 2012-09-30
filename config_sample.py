@@ -1,8 +1,11 @@
 DEBUG = True
-DB_CONNECTION_STRING = 'sqlite:///WkfBox.db'
 SECRET_KEY = ''
 UPLOAD_DIRECTORY = 'uploads/'
 THUMBNAIL_SIZE = (240, 240)
 PER_PAGE = 6
 ALLOWED_EXTS = {'.jpg', '.jpeg', '.png'}
 MAX_CONTENT_LENGTH = 5 * 1024 * 1024
+
+# Database
+SQLALCHEMY_DATABASE_URI = 'sqlite:///WkfBox.db'
+SQLALCHEMY_ECHO = DEBUG

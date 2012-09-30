@@ -39,6 +39,18 @@ section {
 footer {
   padding: 0 35px;
 }
+footer p {
+  text-align: right;
+  font-size: 0.75em;
+  color: #666;
+}
+
+.errors {
+  color: #b94a48;
+  border: 1px solid #fbeed5;
+  border-radius: 4px;
+  background-color: #f2dede;
+}
 
 .picture-list {
   margin-right: -5px;

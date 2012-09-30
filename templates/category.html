@@ -1,15 +1,24 @@
 {% extends 'layout.html' %}
 {% block content %}
 <section>
+{% if form.errors %}<div class="errors">
+  <ul>{% for field in form.errors %}
+    <li>
+      {{ form[field].label.text }}
+      <ul>{% for error in form[field].errors %}
+        <li>{{ error }}</li>
+      {% endfor %}</ul>
+    </li>{% endfor %}
+  </ul>
+</div>{% endif %}
 <form method="POST">
+  {{ form.csrf_token }}
+  {% for field in form %}{% if field.name != 'csrf_token' %}
   <div>
-    <label for="name">Name:</label>
-    <input type="text" id="name" name="name"{% if category %} value="{{ category.name }}"{% endif %} required>
+    {{ field.label }}
+    {{ field() }}
   </div>
-  <div>
-    <label for="slug">Slug:</label>
-    <input type="text" id="slug" name="slug"{% if category %} value="{{ category.slug }}"{% endif %}>
-  </div>
+  {% endif %}{% endfor %}
   <div>
     <input type="submit">
   </div>

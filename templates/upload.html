@@ -1,19 +1,24 @@
 {% extends 'layout.html' %}
 {% block content %}
 <section>
+{% if form.errors %}<div class="errors">
+  <ul>{% for field in form.errors %}
+    <li>
+      {{ form[field].label.text }}
+      <ul>{% for error in form[field].errors %}
+        <li>{{ error }}</li>
+      {% endfor %}</ul>
+    </li>{% endfor %}
+  </ul>
+</div>{% endif %}
 <form method="POST" enctype="multipart/form-data">
-  <div>
-    <label for="image">Image:</label>
-    <input type="file" id="image" name="image" required>
-  </div>
-  <div>
-    <label for="category">Category:</label>
-    <input type="text" id="category" name="category">
-  </div>
-  <div>
-    <label for="episode">Episode:</label>
-    <input type="number" id="episode" name="episode" min="0">
-  </div>
+  {{ form.csrf_token }}
+  {% for field in form %}{% if field.name != 'csrf_token' %}
+    <div>
+      {{ field.label }}
+      {{ field() }}
+    </div>
+  {% endif %}{% endfor %}
   <div>
     <input type="submit">
   </div>
