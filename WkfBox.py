@@ -42,12 +42,12 @@ db = SQLAlchemy(app)
 # Helpers
 _punct_re = re.compile(r'[\t !"#$%&\'()*\-/<=>?@\[\\\]^_`{|},.]+')
 
-def slugify(text, delim=u'-'):
+def slugify(text, delim='-'):
   """Generates an ASCII-only slug."""
   result = []
   for word in _punct_re.split(text.lower()):
       result.extend(unidecode(word).split())
-  return unicode(delim.join(result))
+  return str(delim.join(result))
 
 def rebuild_thumbnail():
   pictures = Picture.query.all()
@@ -127,17 +127,17 @@ class SlugField(StringField):
 
 
 class CategoryForm(Form):
-  name = StringField(u'Name', validators=[DataRequired()])
-  slug = SlugField('name', label=u'Slug', validators=[
-    Regexp('^[0-9a-z\-]+$', message=u'Only lowercase alphabets, numbers, and hyphen are allowed.'),
+  name = StringField('Name', validators=[DataRequired()])
+  slug = SlugField('name', label='Slug', validators=[
+    Regexp('^[0-9a-z\-]+$', message='Only lowercase alphabets, numbers, and hyphen are allowed.'),
     Unique(lambda: db.session, Category, Category.slug)
   ])
 
 class UploadForm(Form):
-  picture = FileField(u'Image', validators=[FileRequired()])
+  picture = FileField('Image', validators=[FileRequired()])
   category = QuerySelectField(query_factory=lambda: Category.query.order_by(Category.name),
                               allow_blank=True)
-  episode = IntegerField(u'Episode', validators=[Optional(strip_whitespace=False), NumberRange(1)])
+  episode = IntegerField('Episode', validators=[Optional(strip_whitespace=False), NumberRange(1)])
 
 # Views
 @app.errorhandler(404)
