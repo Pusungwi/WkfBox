@@ -1,14 +1,14 @@
 {% extends 'layout.html' %}
 {% block content %}
-<section>
-<form method="POST" enctype="multipart/form-data">
+<section>{% if error %}
+<div class="errors">{{ error }}</div>{% endif %}
+<form method="POST">
   {{ form.csrf_token }}
   {% for field in form %}{% if field.name != 'csrf_token' %}
-  <div>
-    {{ field.label }}
-    {{ field() }}{% if field.errors %}
-    <span>{{ field.errors[0] }}</span>{% endif %}
-  </div>
+    <div>
+      {{ field.label }}
+      {{ field() }}
+    </div>
   {% endif %}{% endfor %}
   <div>
     <input type="submit">

@@ -8,20 +8,21 @@
 # http://sam.zoy.org/wtfpl/COPYING for more details.
 
 # Imports
-import sys
+from functools import wraps
 import math
 import os
 import re
+import sys
 import uuid
 
-from flask import Flask, abort, redirect, request, send_file, render_template, url_for
+from flask import Flask, abort, flash, redirect, render_template, request, send_file, session, url_for
 from flask.ext.sqlalchemy import SQLAlchemy
-from flask.ext.wtf import Form, StringField, FileField, DataRequired, Optional, Regexp, NumberRange, FileRequired
-from flask.ext.wtf.html5 import IntegerField
+from flask.ext.wtf import ValidationError, Form, StringField as _StringField, PasswordField, FileField, EqualTo, DataRequired, Optional, Regexp, NumberRange, FileRequired
+from flask.ext.wtf.html5 import IntegerField as _IntegerField
 
 from werkzeug.utils import secure_filename
 
-from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql.expression import desc, func
 from sqlalchemy.ext.associationproxy import association_proxy
 
@@ -32,14 +33,17 @@ from unidecode import unidecode
 
 from PIL import Image
 
+import bcrypt
+
 import config
 
-# Application Initialization
+#region Application Initialization
 app = Flask(__name__)
 app.config.from_object(config)
 db = SQLAlchemy(app)
+#endregion
 
-# Helpers
+#region Helpers
 _punct_re = re.compile(r'[\t !"#$%&\'()*\-/<=>?@\[\\\]^_`{|},.]+')
 
 def slugify(text, delim=u'-'):
@@ -64,8 +68,32 @@ def rebuild_thumbnail():
 def init_db():
   db.drop_all()
   db.create_all()
+#endregion
 
-# Models
+#region Decorators
+def login_required(f):
+  @wraps(f)
+  def wrapper(*args, **kwargs):
+    if not 'user' in session:
+      flash('You have to be logged in to continue.')
+      return redirect(url_for('login'))
+    return f(*args, **kwargs)
+  return wrapper
+#endregion
+
+#region Models
+class User(db.Model):
+  __tablename__ = 'users'
+
+  id = db.Column(db.Integer, primary_key=True)
+  username = db.Column(db.String, nullable=False, unique=True)
+  password = db.Column(db.String, nullable=False)
+  pictures = db.relationship('Picture', backref='user')
+
+  def __init__(self, username, password):
+    self.username = username
+    self.password = password
+
 class Category(db.Model):
   __tablename__ = 'categories'
   
@@ -96,6 +124,7 @@ class Picture(db.Model):
   __tablename__ = 'pictures'
   
   id = db.Column(db.Integer, primary_key=True)
+  user_id = db.Column(db.Integer, db.ForeignKey(User.id))
   category_id = db.Column(db.Integer, db.ForeignKey(Category.id))
   filename = db.Column(db.String, nullable=False)
   original_filename = db.Column(db.String)
@@ -114,8 +143,26 @@ association_table = db.Table('pictures_keywords', db.metadata,
   db.Column('picture_id', db.Integer, db.ForeignKey(Picture.id)),
   db.Column('keyword_id', db.Integer, db.ForeignKey(Keyword.id))
 )
+#endregion
 
-# Forms
+#region Forms
+class StringField(_StringField):
+  def __call__(self, **kwargs):
+    if 'required' in self.flags:
+      kwargs['required'] = 'required'
+    return super(StringField, self).__call__(**kwargs)
+
+class IntegerField(_IntegerField):
+  def __call__(self, **kwargs):
+    for validator in self.validators:
+      if isinstance(validator, NumberRange):
+        if validator.min:
+          kwargs['min'] = validator.min
+        if validator.max:
+          kwargs['max'] = validator.max
+        break
+    return super(IntegerField, self).__call__(**kwargs)
+
 class SlugField(StringField):
   def __init__(self, source, **kwargs):
     self.source = source
@@ -125,6 +172,36 @@ class SlugField(StringField):
     if not self.data:
       self.data = slugify(form[self.source].data)
 
+class FileAllowed(object):
+  def __init__(self, message=None):
+    if message:
+      self.message = message
+    else:
+      self.message = u'Only ' + u', '.join(app.config['ALLOWED_EXTS']) + u' files are allowed.'
+
+  def __call__(self, form, field):
+    if not field.has_file():
+      return
+    if not os.path.splitext(field.data.filename)[-1] in app.config['ALLOWED_EXTS']:
+      raise ValidationError, self.message
+
+class SignupForm(Form):
+  username = StringField(u'Username', validators=[
+    DataRequired(),
+    Regexp('^[A-Za-z0-9\-_]+$', message=u'Only alphabets, numbers, hyphen, and underscore are allowed.'),
+    Unique(lambda: db.session, User, User.username)
+  ])
+  password = PasswordField(u'Password', validators=[DataRequired()])
+  password_confirmation = PasswordField(u'Confirm Password', validators=[DataRequired(),
+    EqualTo('password', u'Password confirmation is different from password.')
+  ])
+
+class LoginForm(Form):
+  username = StringField(u'Username', validators=[
+    DataRequired(),
+    Regexp('^[A-Za-z0-9\-_]+$', message=u'Only alphabets, numbers, hyphen, and underscore are allowed.')
+  ])
+  password = PasswordField(u'Password', validators=[DataRequired()])
 
 class CategoryForm(Form):
   name = StringField(u'Name', validators=[DataRequired()])
@@ -134,12 +211,16 @@ class CategoryForm(Form):
   ])
 
 class UploadForm(Form):
-  picture = FileField(u'Image', validators=[FileRequired()])
+  picture = FileField(u'Image', validators=[
+    FileRequired(u'This field is required.'),
+    FileAllowed()
+  ])
   category = QuerySelectField(query_factory=lambda: Category.query.order_by(Category.name),
                               allow_blank=True)
   episode = IntegerField(u'Episode', validators=[Optional(strip_whitespace=False), NumberRange(1)])
+#endregion
 
-# Views
+#region Views
 @app.errorhandler(404)
 def error_404(e):
   return render_template('404.html'), 404
@@ -148,7 +229,46 @@ def error_404(e):
 def favicon():
   abort(404)
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+  form = LoginForm()
+  error = None
+  if form.validate_on_submit():
+    try:
+      user = User.query.filter_by(username=form.username.data).one()
+    except NoResultFound:
+      user = None
+    if user and user.password == bcrypt.hashpw(form.password.data, user.password):
+      session['user'] = user.id
+      flash(u'Successfully logged in.')
+      return redirect(url_for('list'))
+    error = u'Invalid username or password.'
+  return render_template('login.html', form=form, error=error)
+
+@app.route('/logout')
+@login_required
+def logout():
+  session.pop('user', None)
+  flash(u'Successfully logged out.')
+  return redirect(request.referrer or url_for('list'))
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+  form = SignupForm()
+  if form.validate_on_submit():
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(form.password.data, salt)
+
+    user = User(form.username.data, hashed_password)
+
+    db.session.add(user)
+    db.session.commit()
+
+    return redirect(url_for('list'))
+  return render_template('signup.html', form=form)
+
 @app.route('/new/picture', methods=['GET', 'POST'])
+@login_required
 def upload():
   form = UploadForm()
   if form.validate_on_submit():
@@ -156,8 +276,6 @@ def upload():
     uploaded_image = form.picture.data
     original_filename = secure_filename(uploaded_image.filename)
     fileext = os.path.splitext(original_filename)[1]
-    if not fileext in app.config['ALLOWED_EXTS']:
-      abort(400)
     filename = str(uuid.uuid4())
     thumbnail = filename + '.thumb.jpg'
 
@@ -173,16 +291,17 @@ def upload():
 
     # Save to database
     picture = Picture(filename + fileext, thumbnail, original_filename)
+    picture.user_id = session['user']
     picture.category = form.category.data
     picture.episode = form.episode.data or None
     db.session.add(picture)
     db.session.commit()
 
-    return redirect('/')
-
+    return redirect(url_for('show', id=picture.id))
   return render_template('upload.html', form=form)
 
 @app.route('/new/category', methods=['GET', 'POST'])
+@login_required
 def add_category():
   form = CategoryForm()
   if form.validate_on_submit():
@@ -194,6 +313,7 @@ def add_category():
   return render_template('category.html', form=form)
 
 @app.route('/<category_slug>/:edit', methods=['GET', 'POST'])
+@login_required
 def edit_category(category_slug):
   try:
     category = Category.query.filter_by(slug=category_slug).one()
@@ -226,15 +346,20 @@ def show(id):
     picture = Picture.query.filter_by(id=id).one()
   except NoResultFound:
     abort(404)
-  filename = picture.thumbnail if 'thumb' in request.args \
+
+  if 'type' in request.args:
+    filename = picture.thumbnail if request.args['type'] == 'thumb' \
              else picture.filename
-  return send_file(os.path.join(app.config['UPLOAD_DIRECTORY'], filename))
+    return send_file(os.path.join(app.config['UPLOAD_DIRECTORY'], filename))
+  return render_template('show.html', picture=picture)
 
 @app.route('/:<int:id>/edit')
+@login_required
 def edit(id):
   pass
 
 @app.route('/:<int:id>/delete')
+@login_required
 def delete(id):
   try:
     picture = Picture.query.filter_by(id=id).one()
@@ -272,6 +397,7 @@ def list(category_slug=None, episode=None):
   pictures = pictures.order_by(desc(Picture.id))[range_start:range_end]
   return render_template('list.html', pictures=pictures, category=category
                                     , episode=episode, page=page, total_page=total_page)
+#endregion
 
 if __name__ == '__main__':
   app.run(sys.argv[1] if len(sys.argv) > 1 else '127.0.0.1')

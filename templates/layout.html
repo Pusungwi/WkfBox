@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>WkfBox</title>
-<meta charset="utf-8">
-<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+  <title>WkfBox</title>
+  <meta charset="utf-8">
+  <link rel="shortcut icon" href="">
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <header>
@@ -13,11 +14,19 @@
     <li><a href="{{ url_for('list') }}">All</a></li>
     <li><a href="{{ url_for('random') }}">Random</a></li>
     <li><a href="{{ url_for('add_category') }}">Add Category</a></li>
-    <li><a href="{{ url_for('upload') }}">Upload</a></li>
+    <li><a href="{{ url_for('upload') }}">Upload</a></li>{% if session.user %}
+    <li class="right"><a href="{{ url_for('logout') }}">Logout</a></li>{% else %}
+    <li class="right"><a href="{{ url_for('login') }}">Login</a></li>
+    <li class="right"><a href="{{ url_for('signup') }}">Sign Up</a>{% endif %}
   </ul>
 </nav>
 </header>{% block content %}{% endblock %}<footer>
 <p>All right reserved for their respective owners.</p>
-</footer>
+</footer>{% with messages = get_flashed_messages() %}{% if messages %}
+<div id="flash-wrapper">
+<span id="flash">
+{{ messages[0] }}
+</span>
+</div>{% endif %}{% endwith %}
 </body>
 </html>
