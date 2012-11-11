@@ -5,4 +5,4 @@ Flask-SQLAlchemy
 Flask-WTF
 unidecode
 PIL
-py-bcrypt
+py-bcrypt-w32

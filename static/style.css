@@ -1,11 +1,45 @@
 @charset "UTF-8";
 
+@-webkit-keyframes flash {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@-moz-keyframes flash {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+* {
+  font-family: Helvetica, Arial, sans-serif;
+  color: #eee;
+}
+
 body {
-  font-family: sans-serif;
   max-width: 835px;
   margin: 10px auto;
   padding: 0;
-  border: 1px solid #ddd;
+  border: 1px solid #666;
+  background-color: #333;
 }
 
 a {
@@ -18,15 +52,22 @@ a:hover {
 
 nav ul {
   list-style: none;
+  padding: 0 35px;
 }
 nav ul li {
   display: inline-block;
-  padding-right: 10px;
+  padding-left: 10px;
+}
+nav ul li:first-child {
+  padding-left: 0;
+}
+nav ul li.right {
+  float: right;
 }
 
 header {
   padding: 0 10px;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid #666;
 }
 header h1 {
   margin-left: 35px;
@@ -43,6 +84,47 @@ footer p {
   text-align: right;
   font-size: 0.75em;
   color: #666;
+}
+
+label {
+  display: inline-block;
+  width: 80px;
+  padding: 3px 0;
+  vertical-align: middle;
+  font-size: 0.8em;
+}
+
+form {
+  padding: 0 10px;
+  color: #333;
+}
+form p {
+  margin: 0;
+  padding-bottom: 5px;
+}
+form div:last-child {
+  padding: 10px 0;
+}
+
+input:focus, select:focus {
+  outline: none;
+  box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.5), 0 0 10px #accb53;
+}
+input[type="button"], input[type="submit"] {
+  border: none;
+  background-color: #accb53;
+  padding: 3px 5px;
+  color: black;
+  font-weight: bold;
+}
+input[type="text"], input[type="password"], input[type="number"], select {
+  border: none;
+  padding: 2px 3px;
+  color: black;
+}
+
+option {
+  color: black;
 }
 
 .errors {
@@ -75,4 +157,25 @@ footer p {
 
 .pager a:first-child {
   margin-right: 15px;
+}
+
+#flash-wrapper {
+  -webkit-animation-name: flash;
+  -webkit-animation-duration: 5s;
+  -moz-animation-name: flash;
+  -moz-animation-duration: 5s;
+  opacity: 0;
+  position: fixed;
+  width: 100%;
+  top: 10px;
+  left: 0;
+  text-align: center;
+}
+
+#flash {
+  display: inline-block;
+  padding: 5px;
+  border: 2px solid #eee;
+  border-radius: 5px;
+  background-color: #333;
 }
