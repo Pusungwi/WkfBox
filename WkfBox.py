@@ -62,6 +62,7 @@ def rebuild_thumbnail():
       image.save(os.path.join(config.UPLOAD_DIRECTORY, picture.thumbnail))
 
 def init_db():
+  print("initializing DB...")
   db.drop_all()
   db.create_all()
 
@@ -156,7 +157,7 @@ def upload():
     uploaded_image = form.picture.data
     original_filename = secure_filename(uploaded_image.filename)
     fileext = os.path.splitext(original_filename)[1]
-    if not fileext in app.config['ALLOWED_EXTS']:
+    if not fileext.lower() in app.config['ALLOWED_EXTS']:
       abort(400)
     filename = str(uuid.uuid4())
     thumbnail = filename + '.thumb.jpg'
