@@ -178,31 +178,31 @@ class FileAllowed(object):
     if message:
       self.message = message
     else:
-      self.message = u'Only ' + u', '.join(app.config['ALLOWED_EXTS']) + u' files are allowed.'
+      self.message = 'Only ' + ', '.join(app.config['ALLOWED_EXTS']) + ' files are allowed.'
 
   def __call__(self, form, field):
     if not field.has_file():
       return
     if not os.path.splitext(field.data.filename)[-1] in app.config['ALLOWED_EXTS']:
-      raise ValidationError, self.message
+      raise ValidationError(self.message)
 
 class SignupForm(Form):
-  username = StringField(u'Username', validators=[
+  username = StringField('Username', validators=[
     DataRequired(),
-    Regexp('^[A-Za-z0-9\-_]+$', message=u'Only alphabets, numbers, hyphen, and underscore are allowed.'),
+    Regexp('^[A-Za-z0-9\-_]+$', message='Only alphabets, numbers, hyphen, and underscore are allowed.'),
     Unique(lambda: db.session, User, User.username)
   ])
-  password = PasswordField(u'Password', validators=[DataRequired()])
-  password_confirmation = PasswordField(u'Confirm Password', validators=[DataRequired(),
-    EqualTo('password', u'Password confirmation is different from password.')
+  password = PasswordField('Password', validators=[DataRequired()])
+  password_confirmation = PasswordField('Confirm Password', validators=[DataRequired(),
+    EqualTo('password', 'Password confirmation is different from password.')
   ])
 
 class LoginForm(Form):
-  username = StringField(u'Username', validators=[
+  username = StringField('Username', validators=[
     DataRequired(),
-    Regexp('^[A-Za-z0-9\-_]+$', message=u'Only alphabets, numbers, hyphen, and underscore are allowed.')
+    Regexp('^[A-Za-z0-9\-_]+$', message='Only alphabets, numbers, hyphen, and underscore are allowed.')
   ])
-  password = PasswordField(u'Password', validators=[DataRequired()])
+  password = PasswordField('Password', validators=[DataRequired()])
 
 class CategoryForm(Form):
   name = StringField('Name', validators=[DataRequired()])
@@ -240,16 +240,16 @@ def login():
       user = None
     if user and user.password == bcrypt.hashpw(form.password.data, user.password):
       session['user'] = user.id
-      flash(u'Successfully logged in.')
+      flash('Successfully logged in.')
       return redirect(url_for('list'))
-    error = u'Invalid username or password.'
+    error = 'Invalid username or password.'
   return render_template('login.html', form=form, error=error)
 
 @app.route('/logout')
 @login_required
 def logout():
   session.pop('user', None)
-  flash(u'Successfully logged out.')
+  flash('Successfully logged out.')
   return redirect(request.referrer or url_for('list'))
 
 @app.route('/signup', methods=['GET', 'POST'])
